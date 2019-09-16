@@ -1,0 +1,24 @@
+body {
+  font-family: "Montserrat", sans-serif;
+  margin: 0;
+  padding: 1px 2rem 1rem;
+  min-height: 100vh;
+  box-sizing: border-box;
+  background: rgb(54, 109, 184);
+  background: -moz-linear-gradient(
+    180deg,
+    rgba(54, 109, 184, 1) 0%,
+    rgba(227, 239, 255, 1) 100%
+  );
+  background: -webkit-linear-gradient(
+    180deg,
+    rgba(54, 109, 184, 1) 0%,
+    rgba(227, 239, 255, 1) 100%
+  );
+  background: linear-gradient(
+    180deg,
+    rgba(54, 109, 184, 1) 0%,
+    rgba(227, 239, 255, 1) 100%
+  );
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr="#366db8",endColorstr="#e3efff",GradientType=1);
+}

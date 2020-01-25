@@ -2,12 +2,11 @@ import React, {
   Component,
   useEffect,
   useState,
-  useRef,
   useContext,
-  createContext
+  createContext,
 } from "react";
 
-// warning: proof of concept, messy AF
+// Warning: proof of concept, messy AF
 
 const ACTION = "ACTION";
 const ACTIONS = "ACTIONS";
@@ -27,7 +26,7 @@ const defaultStoreMethods = {
     throw new Error(
       "SkyStore: Can't subscribe to state unless a <Sky.Store> is running."
     );
-  }
+  },
 };
 
 function trimUndefined(args) {
@@ -46,7 +45,7 @@ export const createSky = () => {
   const storeContext = createContext({
     subscribeToState() {
       throw new Error("SkyStore: State hooks requires a <Sky.Store> ancestor");
-    }
+    },
   });
   let storeMethods = defaultStoreMethods;
 
@@ -67,25 +66,30 @@ export const createSky = () => {
       // Alllll of this is to avoid nesting a new provider in
       // the <Sky.Store> for every new reducer added to the store.
       // It would be so much simpler to do that but would look really
-      // bad in React DevTools to have so many nested components top level.
+      // bad in React DevTools to have so many nested top level components.
       //
       // This could also be done with a single context containing
       // all state but then every component using any part of the state
       // would be re-rendered with every dispached action that changed something.
       const ctx = useContext(storeContext);
-      const ref = useRef();
-      if (!ref.current) {
-        ref.current = ctx.subscribeToState(useHook, val => setState(val));
-      }
 
-      const { currentState, unsubscribe } = ref.current;
-      const [state, setState] = useState(currentState);
+      // Subscribe and get current state
+      let unsubscribe;
+      const [state, setState] = useState(() => {
+        const result = ctx.subscribeToState(useHook, val => setState(val));
+
+        unsubscribe = result.unsubscribe;
+        return result.currentState;
+      });
+
+      // Unsubscribe when we unmount
       useEffect(() => unsubscribe, [unsubscribe]);
+
       return state;
     };
 
-    let exclusiveState = false;
-    useHook[reducerSym] = (_, action) => action.val; // Val becomes the new state by default
+    let exclusiveState = false; // true if we only trigger on specific actions
+    useHook[reducerSym] = (_, action) => action.val; // By default, Val simply becomes the new state
     useHook[initialStateSym] = undefined;
 
     const params = {
@@ -135,7 +139,7 @@ export const createSky = () => {
           default:
             return false;
         }
-      }
+      },
     };
 
     matchArgs(
@@ -160,7 +164,7 @@ export const createSky = () => {
     const mw = {
       isExclusive: false,
       index: null,
-      func: null
+      func: null,
     };
 
     const params = {
@@ -203,7 +207,7 @@ export const createSky = () => {
           default:
             return false;
         }
-      }
+      },
     };
 
     matchArgs(
@@ -229,49 +233,43 @@ export const createSky = () => {
     constructor() {
       super();
       const states = allHooks.map(hook => hook[initialStateSym]);
-      const stateSubs = new Array(allHooks.length);
+      const stateSubs = allHooks.map(() => ({
+        next: undefined,
+        last: undefined,
+      }));
+      stateSubs.forEach(head => {
+        head.last = head;
+      });
 
-      const subscribeToState = (hook, update) => {
+      function subscribeToState(hook, update) {
         const stateIndex = hook[stateIndexSym];
 
         // Again, this could all be greatly simplified if we created
         // a new context for every reducer in the <Sky.Store>
         const sub = { update, prev: null, next: null };
-
         const head = stateSubs[stateIndex];
-        if (head) {
-          const tail = head.last;
-          tail.next = sub;
-          sub.prev = tail;
-          head.last = sub;
-        } else {
-          // initialize subscription list
-          const newHead = { last: sub, next: sub };
-          sub.prev = newHead;
-          stateSubs[stateIndex] = newHead;
-        }
+        const tail = head.last;
+        tail.next = sub;
+        sub.prev = tail;
+        head.last = sub;
 
         return {
           currentState: states[stateIndex],
           unsubscribe: () => {
             const { prev, next } = sub;
-            if (!next) stateSubs[stateIndex].last = prev;
+            if (!next) head.last = prev;
             sub.prev = next;
-          }
+          },
         };
-      };
+      }
 
-      const getState = hook => states[hook[stateIndexSym]];
-      getState.subscribe = subscribeToState;
-      const activeMiddleware = allMiddleware.map(m => m.func(getState));
-
-      const dispatch = (
+      function dispatch(
         actionCreator,
         val,
         hookSubs,
         middlewareSubs,
         isExclusiveAction
-      ) => {
+      ) {
         const action = { type: actionCreator, val };
         const oldStates = states.slice(0);
 
@@ -316,12 +314,18 @@ export const createSky = () => {
         }
         waitingSubMiddleware.forEach(finishMiddleware);
         waitingRegMiddleware.forEach(finishMiddleware);
-      };
+      }
+
+      // Make the methods globally available for actions
       storeMethods = {
         dispatch,
-        subscribeToState
+        subscribeToState,
       };
       this.storeMethods = storeMethods;
+
+      const getState = hook => states[hook[stateIndexSym]];
+      getState.subscribe = subscribeToState;
+      const activeMiddleware = allMiddleware.map(m => m.func(getState));
     }
 
     componentWillUnmount() {
@@ -374,7 +378,7 @@ export const createSky = () => {
         },
         set(t, name) {
           throw new Error(`SkyStore: Action "${name}" is read-only`);
-        }
+        },
       }
     );
   }
